@@ -7,44 +7,54 @@ import { useState } from 'react';
 import { WebsiteLayout } from './views/Website/WebsiteLayout';
 import { MobileApp } from './views/Mobile/MobileApp';
 import { Dashboard } from './views/Dashboard/Dashboard';
-import { Smartphone, Monitor, LayoutDashboard, ChevronRight } from 'lucide-react';
+import { GuestDashboard } from './views/GuestDashboard/GuestDashboard';
+import { AuthProvider } from './components/AuthProvider';
+import { Smartphone, Monitor, LayoutDashboard, UserCircle, ChevronRight } from 'lucide-react';
 import { motion, AnimatePresence } from 'motion/react';
 
 export default function App() {
-  const [view, setView] = useState<'website' | 'mobile' | 'dashboard'>('website');
+  const [view, setView] = useState<'website' | 'mobile' | 'dashboard' | 'guest'>('website');
 
   return (
-    <div className="relative min-h-screen bg-gray-50">
-      {/* View Switcher Floating Button */}
-      <div className="fixed bottom-10 right-10 z-[1000] flex flex-col items-end gap-4 print:hidden">
-        <motion.div 
-          initial={false}
-          animate={{ scale: 1 }}
-          whileHover={{ scale: 1.05 }}
-          className="bg-primary text-white p-2 rounded-full shadow-2xl border border-accent/20 flex gap-2"
-        >
-          <button 
-            onClick={() => setView('website')}
-            className={`p-3 rounded-full transition-all flex items-center gap-2 ${view === 'website' ? 'bg-accent text-black font-bold' : 'hover:bg-white/10'}`}
+    <AuthProvider>
+      <div className="relative min-h-screen bg-gray-50">
+        {/* View Switcher Floating Button */}
+        <div className="fixed bottom-10 right-10 z-[1000] flex flex-col items-end gap-4 print:hidden">
+          <motion.div 
+            initial={false}
+            animate={{ scale: 1 }}
+            whileHover={{ scale: 1.05 }}
+            className="bg-primary text-white p-2 rounded-full shadow-2xl border border-accent/20 flex gap-2"
           >
-            <Monitor size={20} />
-            {view === 'website' && <span className="text-xs uppercase tracking-widest">Desktop</span>}
-          </button>
-          <button 
-            onClick={() => setView('mobile')}
-            className={`p-3 rounded-full transition-all flex items-center gap-2 ${view === 'mobile' ? 'bg-accent text-black font-bold' : 'hover:bg-white/10'}`}
-          >
-            <Smartphone size={20} />
-            {view === 'mobile' && <span className="text-xs uppercase tracking-widest">App View</span>}
-          </button>
-          <button 
-            onClick={() => setView('dashboard')}
-            className={`p-3 rounded-full transition-all flex items-center gap-2 ${view === 'dashboard' ? 'bg-accent text-black font-bold' : 'hover:bg-white/10'}`}
-          >
-            <LayoutDashboard size={20} />
-            {view === 'dashboard' && <span className="text-xs uppercase tracking-widest">Admin</span>}
-          </button>
-        </motion.div>
+            <button 
+              onClick={() => setView('website')}
+              className={`p-3 rounded-full transition-all flex items-center gap-2 ${view === 'website' ? 'bg-accent text-black font-bold' : 'hover:bg-white/10'}`}
+            >
+              <Monitor size={20} />
+              {view === 'website' && <span className="text-xs uppercase tracking-widest">Desktop</span>}
+            </button>
+            <button 
+              onClick={() => setView('mobile')}
+              className={`p-3 rounded-full transition-all flex items-center gap-2 ${view === 'mobile' ? 'bg-accent text-black font-bold' : 'hover:bg-white/10'}`}
+            >
+              <Smartphone size={20} />
+              {view === 'mobile' && <span className="text-xs uppercase tracking-widest">App View</span>}
+            </button>
+            <button 
+              onClick={() => setView('guest')}
+              className={`p-3 rounded-full transition-all flex items-center gap-2 ${view === 'guest' ? 'bg-accent text-black font-bold' : 'hover:bg-white/10'}`}
+            >
+              <UserCircle size={20} />
+              {view === 'guest' && <span className="text-xs uppercase tracking-widest">Guest Hub</span>}
+            </button>
+            <button 
+              onClick={() => setView('dashboard')}
+              className={`p-3 rounded-full transition-all flex items-center gap-2 ${view === 'dashboard' ? 'bg-accent text-black font-bold' : 'hover:bg-white/10'}`}
+            >
+              <LayoutDashboard size={20} />
+              {view === 'dashboard' && <span className="text-xs uppercase tracking-widest">Admin</span>}
+            </button>
+          </motion.div>
         
         {view === 'website' && (
           <div className="bg-white/80 backdrop-blur-md px-6 py-4 rounded-2xl shadow-xl border border-gray-100 flex items-center gap-6">
@@ -110,6 +120,16 @@ export default function App() {
                 </div>
               </motion.div>
             </motion.div>
+          ) : view === 'guest' ? (
+            <motion.div 
+              key="guest"
+              initial={{ opacity: 0, y: 20 }}
+              animate={{ opacity: 1, y: 0 }}
+              exit={{ opacity: 0, y: -20 }}
+              className="w-full min-h-screen"
+            >
+              <GuestDashboard />
+            </motion.div>
           ) : (
             <motion.div 
               key="dashboard"
@@ -124,5 +144,6 @@ export default function App() {
         </AnimatePresence>
       </main>
     </div>
+    </AuthProvider>
   );
 }

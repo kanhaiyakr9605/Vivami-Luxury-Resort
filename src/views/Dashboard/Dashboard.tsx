@@ -25,6 +25,17 @@ import {
   BarChart,
   Bar
 } from 'recharts';
+import { 
+  collection, 
+  onSnapshot, 
+  query, 
+  orderBy, 
+  doc, 
+  updateDoc 
+} from 'firebase/firestore';
+import { db, auth } from '../../lib/firebase';
+import { useAuth } from '../../components/AuthProvider';
+import { useState, useEffect } from 'react';
 
 const data = [
   { name: 'Mon', revenue: 4000, occupancy: 2400 },
@@ -56,29 +67,38 @@ const StatCard = ({ title, value, icon, trend, color }: { title: string, value: 
   </motion.div>
 );
 
-const RecentBooking = ({ name, room, date, status, amount }: { name: string, room: string, date: string, status: string, amount: string }) => (
+const ServiceRow = ({ request, onUpdateStatus }: { request: any, onUpdateStatus: (id: string, status: string) => void }) => (
   <tr className="border-b border-gray-50 hover:bg-gray-50 transition-colors group">
     <td className="py-4">
       <div className="flex items-center gap-3">
-        <div className="w-8 h-8 rounded-full bg-accent/20 flex items-center justify-center text-accent font-bold text-xs uppercase">
-          {name.split(' ').map(n => n[0]).join('')}
+        <div className="w-10 h-10 rounded-xl bg-accent/20 flex items-center justify-center text-accent font-bold text-xs uppercase">
+          {request.guestName?.[0] || 'G'}
         </div>
         <div>
-          <p className="text-sm font-bold">{name}</p>
-          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{room}</p>
+          <p className="text-sm font-bold">{request.guestName}</p>
+          <p className="text-[10px] text-gray-400 font-bold uppercase tracking-widest">{request.type}</p>
         </div>
       </div>
     </td>
-    <td className="py-4 text-xs font-medium text-gray-500">{date}</td>
-    <td className="py-4">
-      <span className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full ${
-        status === 'Confirmed' ? 'bg-green-50 text-green-600' : 
-        status === 'Pending' ? 'bg-orange-50 text-orange-600' : 'bg-blue-50 text-blue-600'
-      }`}>
-        {status}
-      </span>
+    <td className="py-4 text-xs font-medium text-gray-500">
+      {request.createdAt?.toDate().toLocaleString()}
     </td>
-    <td className="py-4 text-sm font-bold text-right">{amount}</td>
+    <td className="py-4 text-xs text-gray-500 max-w-xs truncate">{request.details}</td>
+    <td className="py-4">
+      <select 
+        value={request.status}
+        onChange={(e) => onUpdateStatus(request.id, e.target.value)}
+        className={`text-[10px] font-bold uppercase tracking-widest px-3 py-1 rounded-full bg-gray-50 border-none outline-none cursor-pointer ${
+          request.status === 'completed' ? 'text-green-600' : 
+          request.status === 'pending' ? 'text-orange-600' : 'text-blue-600'
+        }`}
+      >
+        <option value="pending">Pending</option>
+        <option value="in-progress">In Progress</option>
+        <option value="completed">Completed</option>
+        <option value="cancelled">Cancelled</option>
+      </select>
+    </td>
     <td className="py-4 text-right">
       <button className="text-gray-300 hover:text-primary transition-colors">
         <MoreVertical size={16} />
@@ -88,6 +108,50 @@ const RecentBooking = ({ name, room, date, status, amount }: { name: string, roo
 );
 
 export const Dashboard = () => {
+  const { userProfile, loading } = useAuth();
+  const [requests, setRequests] = useState<any[]>([]);
+
+  useEffect(() => {
+    const q = query(collection(db, 'serviceRequests'), orderBy('createdAt', 'desc'));
+    const unsubscribe = onSnapshot(q, (snapshot) => {
+      setRequests(snapshot.docs.map(doc => ({ id: doc.id, ...doc.data() })));
+    });
+    return () => unsubscribe();
+  }, []);
+
+  const updateStatus = async (id: string, status: string) => {
+    try {
+      await updateDoc(doc(db, 'serviceRequests', id), { status });
+    } catch (err) {
+      console.error("Error updating status:", err);
+    }
+  };
+
+  if (loading) return (
+    <div className="min-h-screen flex items-center justify-center bg-white">
+      <motion.div animate={{ rotate: 360 }} transition={{ repeat: Infinity, duration: 1 }} className="w-8 h-8 border-2 border-accent border-t-transparent rounded-full" />
+    </div>
+  );
+
+  if (!userProfile || userProfile.role !== 'admin') {
+    return (
+      <div className="min-h-screen flex flex-col items-center justify-center bg-primary text-white p-12 text-center space-y-8">
+        <div className="w-24 h-24 border-2 border-accent flex items-center justify-center rotate-45 mb-8">
+          <ShieldCheck size={48} className="text-accent -rotate-45" />
+        </div>
+        <h2 className="text-4xl font-serif">Access Restricted</h2>
+        <p className="max-w-md text-white/60 leading-relaxed font-light">
+          This area is reserved for Vivami Estate Management. Please sign in with an authorized administrator account to continue.
+        </p>
+        <div className="pt-8 border-t border-white/10 w-full max-w-xs">
+          <p className="text-[10px] uppercase font-bold tracking-widest text-accent mb-4">Current User</p>
+          <p className="text-sm font-medium">{userProfile?.email || 'Unauthorized'}</p>
+          <p className="text-[8px] uppercase tracking-widest text-white/30 mt-1">Role: {userProfile?.role || 'Guest'}</p>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-[#FBFBFB] flex">
       {/* Sidebar */}
@@ -102,11 +166,11 @@ export const Dashboard = () => {
         <nav className="flex-1 space-y-2">
           {[
             { icon: <LayoutDashboard size={20} />, label: 'Overview', active: true },
+            { icon: <Bell size={20} />, label: 'Services' },
             { icon: <Calendar size={20} />, label: 'Reservations' },
             { icon: <Users size={20} />, label: 'Guests' },
             { icon: <TrendingUp size={20} />, label: 'Analytics' },
             { icon: <ShieldCheck size={20} />, label: 'Staff' },
-            { icon: <CreditCard size={20} />, label: 'Finances' },
             { icon: <Settings size={20} />, label: 'Settings' }
           ].map((item, idx) => (
             <button 
@@ -121,12 +185,12 @@ export const Dashboard = () => {
 
         <div className="mt-auto pt-8 border-t border-white/10">
           <div className="bg-white/5 p-4 rounded-2xl flex items-center gap-4">
-            <div className="w-10 h-10 rounded-full bg-accent/20 border border-accent/30 flex items-center justify-center text-accent font-serif italic text-xl">
-              V
+            <div className="w-10 h-10 rounded-xl overflow-hidden border border-accent/30">
+               <img src={userProfile?.photoURL || 'https://images.unsplash.com/photo-1507003211169-0a1dd7228f2d?auto=format&fit=crop&q=80&w=100'} className="w-full h-full object-cover" referrerPolicy="no-referrer" />
             </div>
             <div>
-              <p className="text-xs font-bold">Admin Portal</p>
-              <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-0.5">VIV-001</p>
+              <p className="text-xs font-bold truncate max-w-[120px]">{userProfile?.displayName || 'Admin'}</p>
+              <p className="text-[10px] text-white/40 font-bold uppercase tracking-widest mt-0.5">Verified Principal</p>
             </div>
           </div>
         </div>
@@ -137,20 +201,20 @@ export const Dashboard = () => {
         {/* Header */}
         <header className="flex justify-between items-center mb-10">
           <div>
-            <h1 className="text-3xl font-serif italic">Operational Overview</h1>
-            <p className="text-text-secondary text-xs font-bold uppercase tracking-widest mt-1">Vivami Amalfi Coast • Tuesday, May 05</p>
+            <h1 className="text-3xl font-serif italic">Estate Intelligence</h1>
+            <p className="text-text-secondary text-xs font-bold uppercase tracking-widest mt-1">Vivami Amalfi Coast • {new Date().toLocaleDateString('en-US', { weekday: 'long', month: 'long', day: 'numeric' })}</p>
           </div>
           <div className="flex items-center gap-6">
             <div className="relative hidden lg:block">
               <Search className="absolute left-4 top-1/2 -translate-y-1/2 text-gray-400" size={16} />
               <input 
                 type="text" 
-                placeholder="Search bookings..." 
+                placeholder="Search directives..." 
                 className="bg-white border border-gray-100 rounded-full pl-12 pr-6 py-2.5 text-xs focus:outline-none focus:ring-1 focus:ring-accent w-64"
               />
             </div>
-            <button className="relative w-10 h-10 bg-white border border-gray-100 rounded-full flex items-center justify-center text-gray-400">
-              <Bell size={20} />
+            <button className="relative w-10 h-10 bg-white border border-gray-100 rounded-full flex items-center justify-center text-gray-400 hover:border-accent group transition-colors">
+              <Bell size={20} className="group-hover:text-accent transition-colors" />
               <span className="absolute top-2.5 right-2.5 w-2 h-2 bg-accent rounded-full border-2 border-white" />
             </button>
           </div>
@@ -158,98 +222,46 @@ export const Dashboard = () => {
 
         {/* Stats Grid */}
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
-          <StatCard title="Total Revenue" value="$128,450" icon={<DollarSign size={24} />} trend="+12.5%" color="text-green-500" />
-          <StatCard title="Total Bookings" value="2,450" icon={<Calendar size={24} />} trend="+5.2%" color="text-accent" />
-          <StatCard title="Average Stay" value="4.5 Days" icon={<Users size={24} />} trend="-2.1%" color="text-blue-500" />
-          <StatCard title="Efficiency" value="98.2%" icon={<TrendingUp size={24} />} trend="+0.4%" color="text-purple-500" />
+          <StatCard title="Total Revenue" value="$42,850" icon={<DollarSign size={24} />} trend="+12.5%" color="text-green-500" />
+          <StatCard title="Active Services" value={requests.filter(r => r.status === 'pending' || r.status === 'in-progress').length.toString()} icon={<Bell size={24} />} trend="+2.4%" color="text-accent" />
+          <StatCard title="Arrivals Today" value="8" icon={<Calendar size={24} />} trend="+3" color="text-blue-500" />
+          <StatCard title="Guest Satisfaction" value="4.9" icon={<Star size={24} />} trend="+0.1" color="text-purple-500" />
         </div>
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
-          {/* Revenue Chart */}
-          <div className="lg:col-span-2 bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
-            <div className="flex justify-between items-center mb-8">
-              <h3 className="text-xl font-serif">Revenue Performance</h3>
-              <select className="bg-gray-50 border-none text-[10px] font-bold uppercase tracking-widest px-4 py-2 rounded-lg focus:outline-none">
-                <option>Weekly View</option>
-                <option>Monthly View</option>
-              </select>
-            </div>
-            <div className="h-80 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <AreaChart data={data}>
-                  <defs>
-                    <linearGradient id="colorRev" x1="0" y1="0" x2="0" y2="1">
-                      <stop offset="5%" stopColor="#D4AF37" stopOpacity={0.1}/>
-                      <stop offset="95%" stopColor="#D4AF37" stopOpacity={0}/>
-                    </linearGradient>
-                  </defs>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F0F0F0" />
-                  <XAxis 
-                    dataKey="name" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fontSize: 10, fill: '#9CA3AF' }} 
-                  />
-                  <YAxis 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fontSize: 10, fill: '#9CA3AF' }}
-                  />
-                  <Tooltip 
-                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 30px rgba(0,0,0,0.1)' }}
-                  />
-                  <Area type="monotone" dataKey="revenue" stroke="#D4AF37" strokeWidth={3} fillOpacity={1} fill="url(#colorRev)" />
-                </AreaChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Occupancy Chart */}
-          <div className="bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
-            <h3 className="text-xl font-serif mb-8">Occupancy Rate</h3>
-            <div className="h-80 w-full">
-              <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={data}>
-                  <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#F0F0F0" />
-                  <XAxis 
-                    dataKey="name" 
-                    axisLine={false} 
-                    tickLine={false} 
-                    tick={{ fontSize: 10, fill: '#9CA3AF' }} 
-                  />
-                  <YAxis hide />
-                  <Tooltip cursor={{ fill: 'transparent' }} contentStyle={{ borderRadius: '12px', border: 'none' }} />
-                  <Bar dataKey="occupancy" fill="#0B0B0B" radius={[10, 10, 0, 0]} />
-                </BarChart>
-              </ResponsiveContainer>
-            </div>
-          </div>
-
-          {/* Recent Bookings Table */}
+          {/* Recent Service Requests */}
           <div className="lg:col-span-3 bg-white p-8 rounded-3xl shadow-sm border border-gray-100">
             <div className="flex justify-between items-center mb-8">
-              <h3 className="text-xl font-serif">Recent Reservations</h3>
-              <button className="text-accent text-[10px] font-bold uppercase tracking-widest flex items-center gap-2">
-                View Full Log <ChevronDown size={14} />
-              </button>
+              <h3 className="text-xl font-serif">Service Directives</h3>
+              <div className="flex gap-2">
+                <span className="text-[10px] font-bold uppercase tracking-widest bg-orange-50 text-orange-500 px-3 py-1 rounded-full">
+                  {requests.filter(r => r.status === 'pending').length} Pending
+                </span>
+                <span className="text-[10px] font-bold uppercase tracking-widest bg-blue-50 text-blue-500 px-3 py-1 rounded-full">
+                  {requests.filter(r => r.status === 'in-progress').length} Active
+                </span>
+              </div>
             </div>
             <div className="overflow-x-auto">
               <table className="w-full text-left">
                 <thead>
                   <tr className="text-gray-400 text-[10px] uppercase font-bold tracking-[0.2em] border-b border-gray-100 pb-4">
-                    <th className="font-bold pb-4">Guest</th>
-                    <th className="font-bold pb-4">Stay Dates</th>
-                    <th className="font-bold pb-4">Status</th>
-                    <th className="font-bold pb-4 text-right">Total Price</th>
+                    <th className="font-bold pb-4">Guest & Type</th>
+                    <th className="font-bold pb-4">Timestamp</th>
+                    <th className="font-bold pb-4">Special Instructions</th>
+                    <th className="font-bold pb-4">Status Dispatch</th>
                     <th className="font-bold pb-4 text-right"></th>
                   </tr>
                 </thead>
                 <tbody>
-                  <RecentBooking name="Elena Gilbert" room="Oceanic Suite" date="May 12 - May 18" status="Confirmed" amount="$5,240.00" />
-                  <RecentBooking name="Stefan Salvatore" room="Royal Penthouse" date="May 15 - May 22" status="In Progress" amount="$8,450.00" />
-                  <RecentBooking name="Caroline Forbes" room="Garden Villa" date="May 11 - May 14" status="Pending" amount="$2,120.00" />
-                  <RecentBooking name="Klaus Mikaelson" room="Sky Loft" date="May 20 - May 25" status="Confirmed" amount="$12,000.00" />
-                  <RecentBooking name="Bonnie Bennett" room="Deluxe View" date="May 08 - May 10" status="Confirmed" amount="$1,850.00" />
+                  {requests.map(req => (
+                    <ServiceRow key={req.id} request={req} onUpdateStatus={updateStatus} />
+                  ))}
+                  {requests.length === 0 && (
+                    <tr>
+                      <td colSpan={5} className="py-20 text-center text-gray-400 font-serif italic text-lg">No active service directives found</td>
+                    </tr>
+                  )}
                 </tbody>
               </table>
             </div>

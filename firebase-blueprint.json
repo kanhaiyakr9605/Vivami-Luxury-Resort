@@ -1,0 +1,79 @@
+{
+  "entities": {
+    "User": {
+      "title": "User",
+      "description": "User profile information",
+      "type": "object",
+      "properties": {
+        "uid": { "type": "string" },
+        "email": { "type": "string" },
+        "displayName": { "type": "string" },
+        "photoURL": { "type": "string" },
+        "role": { "type": "string", "enum": ["guest", "admin", "staff"] },
+        "createdAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["uid", "email", "role"]
+    },
+    "ServiceRequest": {
+      "title": "Service Request",
+      "description": "A guest request for services like taxi or waiter",
+      "type": "object",
+      "properties": {
+        "guestId": { "type": "string" },
+        "guestName": { "type": "string" },
+        "roomNumber": { "type": "string" },
+        "type": { "type": "string", "enum": ["taxi", "waiter", "cleaning", "maintenance"] },
+        "status": { "type": "string", "enum": ["pending", "in-progress", "completed", "cancelled"] },
+        "details": { "type": "string" },
+        "createdAt": { "type": "string", "format": "date-time" },
+        "updatedAt": { "type": "string", "format": "date-time" }
+      },
+      "required": ["guestId", "type", "status", "createdAt"]
+    },
+    "Booking": {
+      "title": "Booking",
+      "description": "Guest reservation details",
+      "type": "object",
+      "properties": {
+        "guestId": { "type": "string" },
+        "roomName": { "type": "string" },
+        "checkIn": { "type": "string", "format": "date" },
+        "checkOut": { "type": "string", "format": "date" },
+        "totalPrice": { "type": "number" },
+        "status": { "type": "string", "enum": ["upcoming", "active", "completed", "cancelled"] }
+      },
+      "required": ["guestId", "roomName", "checkIn", "checkOut"]
+    },
+    "MenuItem": {
+      "title": "Menu Item",
+      "description": "Item on the restaurant menu",
+      "type": "object",
+      "properties": {
+        "name": { "type": "string" },
+        "category": { "type": "string" },
+        "price": { "type": "number" },
+        "description": { "type": "string" },
+        "image": { "type": "string" }
+      },
+      "required": ["name", "category", "price"]
+    }
+  },
+  "firestore": {
+    "/users/{userId}": {
+      "schema": "User",
+      "description": "Collection of user profiles"
+    },
+    "/serviceRequests/{requestId}": {
+      "schema": "ServiceRequest",
+      "description": "Requests made by guests for various services"
+    },
+    "/bookings/{bookingId}": {
+      "schema": "Booking",
+      "description": "Guest bookings"
+    },
+    "/menuItems/{itemId}": {
+      "schema": "MenuItem",
+      "description": "Restaurant menu items"
+    }
+  }
+}
